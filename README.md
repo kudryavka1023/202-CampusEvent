@@ -6,6 +6,7 @@
 - 需求验收表：`docs/需求验收表.md`（C1～C10、E1～E10、可扩展性验证，47/47 通过）
 - 设计基线：`uml/设计说明书.md`、`uml/04-设计原则与模式.md`
 - UML：`uml/01-usecase.drawio`、`uml/03-analysis-class.drawio`、`uml/06-design-class*.drawio`、三张顺序图、`uml/09-state.drawio`、`uml/10-activity-报名流程.drawio`
+- 图件汇总（mermaid 重绘）：`docs/图件汇总.md`
 
 ## 1. 环境配置
 
@@ -83,18 +84,40 @@ tests/              自动化测试（含可扩展性验证）
 
 ## 6. 部署（云服务器）
 
+**线上地址**：<http://193.112.133.193:8080/>（演示入口：<http://193.112.133.193:8080/demo/login>）
+
+服务器：Ubuntu（VM-0-7-ubuntu）｜ 部署目录：`/opt/202-CampusEvent` ｜ WSGI：gunicorn（2 worker）｜ 端口：8080
+
 ```bash
+# 1. 建虚拟环境并装依赖
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt gunicorn
-gunicorn -w 2 -b 0.0.0.0:8000 "run:app"
+
+# 2. 建运行目录（data/ 与 logs/ 被 .gitignore 忽略，须手动创建，否则启动报 No such file or directory）
+mkdir -p data logs
+
+# 3. 后台启动（端口 8080，先用 ss -tlnp 确认空闲）
+nohup gunicorn -w 2 -b 0.0.0.0:8080 "run:app" > logs/gunicorn.log 2>&1 &
+echo $! > logs/gunicorn.pid
 ```
 
-SQLite 单文件；生产用 waitress/gunicorn 多线程即可（写事务串行化）。上线前：改 `SECRET_KEY`、关闭 debug、保留 `data/` 与 `logs/` 目录权限。
+SQLite 单文件；生产用 waitress/gunicorn 多线程即可（写事务串行化）。上线前：改 `SECRET_KEY`、关闭 debug、保留 `data/` 与 `logs/` 目录权限；云厂商安全组需放行 8080 端口。
 
 ## 7. Git 流程
 
-- 分支：`main`（本仓库初始分支）。
-- 标签：待用户最终审核后创建（如 `baseline-v1`）。
+- 仓库：`https://github.com/kudryavka1023/202-CampusEvent.git`
+- 分支：`main`。
+- 标签：`baseline-v1`（初始验收版本，本阶段交付）。
 - 提交约定：一个提交一件事；提交信息写“为什么”。
+
+创建 baseline-v1 标签：
+
+```bash
+git add -A
+git commit -m "docs: 补充云部署说明与图件汇总"
+git tag -a baseline-v1 -m "实验二初始验收版本：47/47 测试通过，已部署上线"
+git push origin main --tags
+```
 
 ## 8. AI 使用记录
 
