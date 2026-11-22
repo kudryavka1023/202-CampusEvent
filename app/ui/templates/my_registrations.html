@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card"><h2>我的报名</h2></div>
+{% if not items %}
+  <div class="card">暂无报名记录</div>
+{% else %}
+<table>
+  <tr><th>活动名称</th><th>提交时间</th><th>状态</th><th></th></tr>
+  {% for item in items %}
+  <tr>
+    <td><a href="{{ url_for('bp.activity_detail', activity_id=item.activity_id) }}">{{ item.activity_title }}</a></td>
+    <td>{{ item.created_at.replace('T', ' ') }}</td>
+    <td><span class="badge {{ item.status.value }}">{{ status_text[item.status.value] }}</span></td>
+    <td>
+      {% if item.status.value in ('PENDING','APPROVED') %}
+      <form method="post" action="{{ url_for('bp.cancel_registration', registration_id=item.registration_id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn danger" type="submit">取消报名</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

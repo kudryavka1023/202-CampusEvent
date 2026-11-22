@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card"><h2>站内通知</h2></div>
+{% if not messages %}
+  <div class="card">暂无通知</div>
+{% else %}
+<table>
+  <tr><th>消息内容</th><th>关联活动</th><th>时间</th><th>状态</th><th></th></tr>
+  {% for m in messages %}
+  <tr>
+    <td>{{ m.content }}</td>
+    <td><a href="{{ url_for('bp.activity_detail', activity_id=m.activity_id) }}">{{ m.activity_id }}</a></td>
+    <td>{{ m.created_at.replace('T', ' ') }}</td>
+    <td>{{ '已读' if m.is_read else '未读' }}</td>
+    <td>
+      {% if not m.is_read %}
+      <form method="post" action="{{ url_for('bp.notification_read', message_id=m.message_id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn ghost" type="submit">标记已读</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

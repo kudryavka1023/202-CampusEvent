@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "references": {
+    "course-source": {
+      "path": "../source",
+      "description": "课程实验指导、老师 UML 教学案例、设计说明书样例、资料库"
+    }
+  },
+  "skills": ["../.opencode/skills"]
+}

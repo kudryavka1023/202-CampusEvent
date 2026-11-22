@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampusEvent 校园活动报名与管理系统</title>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; margin: 0; background: #f5f6f8; color: #1a1a1a; }
+  nav { background: #2b5f8a; color: #fff; padding: 10px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  nav a { color: #fff; text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  main { max-width: 1000px; margin: 20px auto; padding: 0 16px; }
+  .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 14px; }
+  table { border-collapse: collapse; width: 100%; background: #fff; }
+  th, td { border: 1px solid #e0e0e0; padding: 8px 10px; text-align: left; font-size: 14px; }
+  th { background: #eef3f8; }
+  .btn { display: inline-block; background: #2b5f8a; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 13px; }
+  .btn.ghost { background: #fff; color: #2b5f8a; border: 1px solid #2b5f8a; }
+  .btn.danger { background: #b3453a; }
+  .btn[disabled] { background: #bbb; cursor: not-allowed; }
+  input, select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+  .flash { padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; }
+  .flash.ok { background: #e4f5e6; color: #1d6b2f; border: 1px solid #b6e3bd; }
+  .flash.error { background: #fbe9e7; color: #a33; border: 1px solid #f0b9b2; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; background: #eef3f8; color: #333; }
+  .badge.PENDING { background: #fff3d6; color: #8a6a00; }
+  .badge.APPROVED { background: #e4f5e6; color: #1d6b2f; }
+  .badge.REJECTED { background: #fbe9e7; color: #a33; }
+  .badge.CANCELLED { background: #eee; color: #666; }
+  .muted { color: #777; font-size: 13px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .field { margin-bottom: 10px; }
+  .field label { display: inline-block; width: 96px; }
+</style>
+</head>
+<body>
+<nav>
+  <strong>CampusEvent</strong>
+  {% if session.get('role') == 'STUDENT' %}
+    <a href="{{ url_for('bp.activity_list') }}">活动列表</a>
+    <a href="{{ url_for('bp.my_registrations') }}">我的报名</a>
+    <a href="{{ url_for('bp.notification_list') }}">通知</a>
+    <span class="muted" style="color:#cfe0ee;">学生：{{ session.get('name') }}</span>
+  {% elif session.get('role') == 'ADMIN' %}
+    <a href="{{ url_for('bp.admin_activity_list') }}">活动管理</a>
+    <span class="muted" style="color:#cfe0ee;">管理员</span>
+  {% endif %}
+  <a href="{{ url_for('bp.demo_login') }}" style="margin-left:auto;">演示身份</a>
+</nav>
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

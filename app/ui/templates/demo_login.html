@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>选择演示身份</h2>
+  <p class="muted">初始版本使用固定演示账号（假设 A-1），不做注册/登录。</p>
+  <form method="post" action="{{ url_for('bp.demo_session') }}" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <select name="user_id">
+      {% for s in students %}<option value="{{ s.student_id }}">{{ s.name }}（{{ s.student_id }}）</option>{% endfor %}
+    </select>
+    <input type="hidden" name="role" value="STUDENT">
+    <button class="btn" type="submit">以学生身份进入</button>
+  </form>
+  <br>
+  <form method="post" action="{{ url_for('bp.demo_session') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="role" value="ADMIN">
+    <button class="btn ghost" type="submit">以管理员身份进入</button>
+  </form>
+</div>
+{% endblock %}

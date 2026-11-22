@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+{% set activity = page.activity %}
+{% set stats = page.statistics %}
+<div class="card">
+  <h2>{{ activity.title }}</h2>
+  <table>
+    <tr><th style="width:120px;">类型</th><td>{{ activity.category }}</td></tr>
+    <tr><th>开始时间</th><td>{{ activity.start_at.replace('T', ' ') }}</td></tr>
+    <tr><th>地点</th><td>{{ activity.location }}</td></tr>
+    <tr><th>人数上限</th><td>{{ activity.capacity }}</td></tr>
+    <tr><th>剩余名额</th><td>{{ stats.get_remaining_seats() }}</td></tr>
+    <tr><th>报名方式</th><td>{{ policy_label }}</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  {% if page.my_registration %}
+    <p>我的报名状态：<span class="badge {{ page.my_registration.status.value }}">{{ status_text[page.my_registration.status.value] }}</span></p>
+    <form method="post" action="{{ url_for('bp.cancel_registration', registration_id=page.my_registration.registration_id) }}" style="display:inline;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ url_for('bp.activity_detail', activity_id=activity.activity_id) }}">
+      <button class="btn danger" type="submit">取消报名</button>
+    </form>
+  {% elif page.can_register %}
+    <form method="post" action="{{ url_for('bp.activity_register', activity_id=activity.activity_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn" type="submit">报名</button>
+    </form>
+  {% elif page.has_started %}
+    <p class="muted">活动已开始，报名已截止。</p>
+  {% else %}
+    <p class="muted">名额已满，无法报名。</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>{% if is_edit %}编辑活动{% else %}创建活动{% endif %}</h2>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field"><label>名称</label><input type="text" name="title" value="{{ activity.title if activity else '' }}" maxlength="100" required></div>
+    <div class="field"><label>类型</label><input type="text" name="category" value="{{ activity.category if activity else '' }}" placeholder="讲座/比赛/社团" required></div>
+    <div class="field"><label>开始时间</label><input type="datetime-local" name="start_at" value="{{ activity.start_at[:16] if activity else '' }}" required></div>
+    <div class="field"><label>地点</label><input type="text" name="location" value="{{ activity.location if activity else '' }}" required></div>
+    <div class="field"><label>人数上限</label><input type="number" name="capacity" min="1" value="{{ activity.capacity if activity else '' }}" required></div>
+    <div class="field"><label>报名方式</label>
+      <select name="policy_type">
+        <option value="DIRECT" {% if activity and activity.policy_type.value == 'DIRECT' %}selected{% endif %}>直接报名</option>
+        <option value="APPROVAL" {% if activity and activity.policy_type.value == 'APPROVAL' %}selected{% endif %}>审核型报名</option>
+      </select>
+    </div>
+    <button class="btn" type="submit">保存</button>
+    <a class="btn ghost" href="{{ url_for('bp.admin_activity_list') }}">返回</a>
+  </form>
+</div>
+{% endblock %}

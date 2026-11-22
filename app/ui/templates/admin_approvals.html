@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>审批报名：{{ activity.title if activity else '活动' }}</h2>
+  <a class="btn ghost" href="{{ url_for('bp.admin_statistics', activity_id=activity.activity_id) }}">查看统计</a>
+</div>
+{% if not items %}
+  <div class="card">暂无待审核报名</div>
+{% else %}
+<table>
+  <tr><th>学生</th><th>提交时间</th><th>操作</th></tr>
+  {% for item in items %}
+  <tr>
+    <td>{{ item.student_name }}（{{ item.student_id }}）</td>
+    <td>{{ item.created_at.replace('T', ' ') }}</td>
+    <td class="row" style="gap:6px;">
+      <form method="post" action="{{ url_for('bp.admin_approve', registration_id=item.registration_id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="activity_id" value="{{ activity.activity_id }}">
+        <button class="btn" type="submit">批准</button>
+      </form>
+      <form method="post" action="{{ url_for('bp.admin_reject', registration_id=item.registration_id) }}" class="row" style="gap:6px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="activity_id" value="{{ activity.activity_id }}">
+        <input type="text" name="reason" placeholder="拒绝理由（可选）">
+        <button class="btn danger" type="submit">拒绝</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

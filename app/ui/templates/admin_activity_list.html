@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>活动管理</h2>
+  <a class="btn" href="{{ url_for('bp.admin_activity_new') }}">创建活动</a>
+</div>
+{% if not summaries %}
+  <div class="card">暂无活动</div>
+{% else %}
+<table>
+  <tr><th>名称</th><th>开始时间</th><th>容量</th><th>剩余名额</th><th>状态</th><th>操作</th></tr>
+  {% for s in summaries %}
+  <tr>
+    <td>{{ s.title }}</td>
+    <td>{{ s.start_at.replace('T', ' ') }}</td>
+    <td>{{ s.capacity }}</td>
+    <td>{{ s.remaining_seats }}</td>
+    <td>{% if s.display_status == 'OPEN' %}报名中{% elif s.display_status == 'FULL' %}已满{% else %}已开始{% endif %}</td>
+    <td class="row" style="gap:6px;">
+      <a class="btn ghost" href="{{ url_for('bp.admin_activity_edit', activity_id=s.activity_id) }}">编辑</a>
+      <a class="btn ghost" href="{{ url_for('bp.admin_approvals', activity_id=s.activity_id) }}">审批</a>
+      <a class="btn ghost" href="{{ url_for('bp.admin_statistics', activity_id=s.activity_id) }}">统计</a>
+      <form method="post" action="{{ url_for('bp.admin_activity_delete', activity_id=s.activity_id) }}" style="display:inline;"
+            onsubmit="return confirm('确认删除该活动？');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn danger" type="submit">删除</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

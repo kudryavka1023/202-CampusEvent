@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>报名统计：{{ stats.activity_title }}</h2>
+  <table>
+    <tr><th style="width:140px;">人数上限</th><td>{{ stats.capacity }}</td></tr>
+    <tr><th>已通过</th><td>{{ stats.approved_count }}</td></tr>
+    <tr><th>待审核</th><td>{{ stats.pending_count }}</td></tr>
+    <tr><th>剩余名额</th><td>{{ stats.get_remaining_seats() }}</td></tr>
+  </table>
+  <br>
+  <a class="btn ghost" href="{{ url_for('bp.admin_activity_list') }}">返回活动管理</a>
+</div>
+{% endblock %}
