@@ -116,7 +116,7 @@ SQLite 单文件；生产用 waitress/gunicorn 多线程即可（写事务串行
 
 - 仓库：`https://github.com/kudryavka1023/202-CampusEvent.git`
 - 分支：`main`。
-- 标签：`baseline-v1`（初始验收版本）；`change-v2`（CR-01/CR-02 变更验收版本，待用户复核后创建）。
+- 标签：`baseline-v1`（初始验收版本）；`change-v2`（CR-01/CR-02 变更验收版本，本地已创建，等待推送）。
 - 提交约定：一个提交一件事；提交信息写“为什么”。
 
 baseline-v1 已提交并打标签；change-v2 在 `main` 上增量提交，创建标签命令：
@@ -128,7 +128,7 @@ git tag -a change-v2 -m "实验二变更版本：59/59 测试通过，CR-01/CR-0
 git push origin main --tags
 ```
 
-> 按用户要求，`change-v2` 标签在用户复核后再创建/推送；代码与文档已提交到 `main`，标签创建是最后一步。
+> `change-v2` 标签已在本地创建，未推送；推送命令由用户执行。
 
 ## 8. AI 使用记录
 
