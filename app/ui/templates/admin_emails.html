@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>模拟邮件记录</h2>
+  <p class="muted">CR-02：记录收件人、主题、内容、状态与时间；邮件失败不回滚报名。</p>
+</div>
+{% if not logs %}
+  <div class="card">暂无邮件记录</div>
+{% else %}
+<table>
+  <tr><th>时间</th><th>收件人</th><th>主题</th><th>状态</th><th>报名编号</th><th>错误</th></tr>
+  {% for log in logs %}
+  <tr>
+    <td>{{ log.created_at.replace('T', ' ') }}</td>
+    <td>{{ log.recipient }}</td>
+    <td>{{ log.subject }}</td>
+    <td><span class="badge {{ log.status.value }}">{{ '已发送' if log.status.value == 'SENT' else '发送失败' }}</span></td>
+    <td>{{ log.registration_id }}</td>
+    <td>{{ log.error or '—' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

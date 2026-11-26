@@ -23,7 +23,7 @@ def past_start(days: int = 7) -> str:
 
 
 def make_activity(title="篮球赛", category="比赛", capacity=2, policy=PolicyType.DIRECT,
-                  start_at=None) -> Activity:
+                  start_at=None, allowed_grades=None) -> Activity:
     return Activity(
         activity_id=f"act_{uuid.uuid4().hex[:10]}",
         title=title,
@@ -32,6 +32,7 @@ def make_activity(title="篮球赛", category="比赛", capacity=2, policy=Polic
         location="体育馆",
         capacity=capacity,
         policy_type=policy,
+        allowed_grades=allowed_grades,
     )
 
 

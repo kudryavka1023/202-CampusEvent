@@ -15,6 +15,16 @@
         <option value="APPROVAL" {% if activity and activity.policy_type.value == 'APPROVAL' %}selected{% endif %}>审核型报名</option>
       </select>
     </div>
+    <div class="field"><label>年级限定</label>
+      {% for g, label in [(1, '大一'), (2, '大二'), (3, '大三'), (4, '大四')] %}
+      <label style="width:auto;margin-right:10px;">
+        <input type="checkbox" name="allowed_grades" value="{{ g }}"
+               {% if activity and activity.allowed_grades and g in activity.allowed_grades %}checked{% endif %}>
+        {{ label }}
+      </label>
+      {% endfor %}
+      <div class="muted">不勾选 = 不限年级；CR-01 示例：只勾选“大二、大三”。</div>
+    </div>
     <button class="btn" type="submit">保存</button>
     <a class="btn ghost" href="{{ url_for('bp.admin_activity_list') }}">返回</a>
   </form>

@@ -11,6 +11,7 @@
     <tr><th>人数上限</th><td>{{ activity.capacity }}</td></tr>
     <tr><th>剩余名额</th><td>{{ stats.get_remaining_seats() }}</td></tr>
     <tr><th>报名方式</th><td>{{ policy_label }}</td></tr>
+    <tr><th>年级限定</th><td>{{ activity.grade_requirement_text() }}</td></tr>
   </table>
 </div>
 
@@ -22,6 +23,8 @@
       <input type="hidden" name="next" value="{{ url_for('bp.activity_detail', activity_id=activity.activity_id) }}">
       <button class="btn danger" type="submit">取消报名</button>
     </form>
+  {% elif page.grade_message %}
+    <p class="flash error">{{ page.grade_message }}</p>
   {% elif page.can_register %}
     <form method="post" action="{{ url_for('bp.activity_register', activity_id=activity.activity_id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -19,9 +19,10 @@ from flask import (
     url_for,
 )
 
+from ..domain.entities import GRADE_TEXT
 from ..domain.enums import PolicyType
 from ..domain.errors import NotFoundError
-from ..domain.events import new_id
+from ..domain.ids import new_id
 
 bp = Blueprint("bp", __name__)
 
@@ -76,7 +77,7 @@ def student_id():
 def demo_login():
     ctx = get_ctx()
     students = ctx.student_repository.all()
-    return render_template("demo_login.html", students=students)
+    return render_template("demo_login.html", students=students, grade_text=GRADE_TEXT)
 
 
 @bp.post("/demo/session")
@@ -289,6 +290,13 @@ def admin_statistics(activity_id):
     return render_template("admin_statistics.html", stats=stats)
 
 
+@bp.get("/admin/emails")
+@require("ADMIN")
+def admin_emails():
+    logs = get_ctx().email_log_controller.list(ADMIN_ID)
+    return render_template("admin_emails.html", logs=logs)
+
+
 # ---------------- 表单辅助 ----------------
 
 def activity_from_form():
@@ -302,6 +310,7 @@ def activity_from_form():
     location = form.get("location", "").strip()
     capacity_raw = form.get("capacity", "").strip()
     policy_raw = form.get("policy_type", "").strip()
+    allowed_raw = form.getlist("allowed_grades")
 
     error = ""
     if start_at:
@@ -321,6 +330,18 @@ def activity_from_form():
     except ValueError:
         policy_type = None
 
+    allowed_grades = None
+    if allowed_raw:
+        try:
+            grades = tuple(sorted({int(g) for g in allowed_raw}))
+        except ValueError:
+            grades = ()
+        if not grades or any(g not in (1, 2, 3, 4) for g in grades):
+            if not error:
+                error = "年级限定只能选择 1—4 年级"
+        elif len(grades) < 4:
+            allowed_grades = grades
+
     activity = Activity(
         activity_id="",
         title=title,
@@ -329,6 +350,7 @@ def activity_from_form():
         location=location,
         capacity=capacity,
         policy_type=policy_type,
+        allowed_grades=allowed_grades,
     )
     if policy_type is None and not error:
         error = "报名方式配置错误"

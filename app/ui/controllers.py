@@ -10,7 +10,14 @@ from typing import List, Optional
 from ..domain.entities import Activity
 from ..domain.enums import ApprovalDecision
 from ..domain.errors import NotFoundError
-from ..domain.value_objects import ActivityResult, ActivityStatistics, ActivitySummary, RegistrationResult, RegistrationSummary
+from ..domain.value_objects import (
+    ActivityResult,
+    ActivityStatistics,
+    ActivitySummary,
+    EmailLog,
+    RegistrationResult,
+    RegistrationSummary,
+)
 
 
 class ActivityController:
@@ -34,10 +41,12 @@ class ActivityController:
         statistics: ActivityStatistics = self.statistics_service.for_activity(activity_id)
         now = datetime.now()
         has_started = not activity.is_open(now)
+        grade_message = self.registration_service.check_eligibility(student_id, activity_id) or ""
         can_register = (
             activity.is_open(now)
             and statistics.get_remaining_seats() > 0
             and my_registration is None
+            and not grade_message
         )
         return {
             "activity": activity,
@@ -45,6 +54,7 @@ class ActivityController:
             "statistics": statistics,
             "can_register": can_register,
             "has_started": has_started,
+            "grade_message": grade_message,
         }
 
     def create(self, admin_id: str, activity: Activity) -> ActivityResult:
@@ -102,3 +112,13 @@ class StatisticsController:
 
     def view(self, admin_id: str, activity_id: str) -> ActivityStatistics:
         return self.statistics_service.for_activity(activity_id)
+
+
+class EmailLogController:
+    """管理员查看模拟邮件记录；只读。"""
+
+    def __init__(self, email_log_service):
+        self.email_log_service = email_log_service
+
+    def list(self, admin_id: str) -> List[EmailLog]:
+        return self.email_log_service.list_all()

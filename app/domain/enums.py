@@ -24,3 +24,8 @@ class RegistrationEventType(str, Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     CANCELLED = "CANCELLED"
+
+
+class EmailStatus(str, Enum):
+    SENT = "SENT"
+    FAILED = "FAILED"

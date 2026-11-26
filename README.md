@@ -1,10 +1,12 @@
 # CampusEvent 校园活动报名与管理系统
 
-实验二 baseline-v1：先设计（`uml/`、`requirements/`），后由 AI 辅助实现（`app/`、`tests/`）。
+实验二 baseline-v1 + change-v2：先设计（`uml/`、`requirements/`），后由 AI 辅助实现（`app/`、`tests/`）。change-v2 按教师变更单 CR-01（年级限定报名）与 CR-02（模拟邮件通知）增量修改。
 
-- 需求基线：`requirements/SRS.md`（v1.0）
-- 需求验收表：`docs/需求验收表.md`（C1～C10、E1～E10、可扩展性验证，47/47 通过）
-- 设计基线：`uml/设计说明书.md`、`uml/04-设计原则与模式.md`
+- 需求基线：`requirements/SRS.md`（v1.1）
+- 需求验收表：`docs/需求验收表.md`（C1～C10、E1～E10、CR1/CR2，59/59 通过）
+- 设计基线：`uml/设计说明书.md`（v1.2）、`uml/04-设计原则与模式.md`
+- 变更影响分析：`docs/CR-01-CR-02-影响分析.md`
+- 两版对比：`docs/baseline-v1-vs-change-v2.md`
 - UML：`uml/01-usecase.drawio`、`uml/03-analysis-class.drawio`、`uml/06-design-class*.drawio`、三张顺序图、`uml/09-state.drawio`、`uml/10-activity-报名流程.drawio`
 - 图件汇总（mermaid 重绘）：`docs/图件汇总.md`
 
@@ -29,10 +31,13 @@ py -3 -m venv .venv
 
 | 身份 | 账号 |
 |---|---|
-| 学生 | stu_demo1（张三）、stu_demo2（李四） |
+| 学生 大一 | stu_demo1（张三，年级 1） |
+| 学生 大二 | stu_demo2（李四，年级 2） |
+| 学生 大三 | stu_demo3（王五，年级 3） |
+| 学生 大四 | stu_demo4（赵六，年级 4） |
 | 管理员 | 演示入口点“以管理员身份进入” |
 
-数据文件 `data/campus.db`（首次启动自动建表）；通知失败日志 `logs/notification-failure.log`。
+数据文件 `data/campus.db`（首次启动自动建表；已有 baseline 数据库会自动补 `students.grade/email`、`activities.allowed_grades`、`email_log`）；通知/邮件失败日志 `logs/notification-failure.log`。
 
 ## 3. 测试
 
@@ -40,7 +45,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-覆盖（47 个用例）：
+覆盖（59 个用例）：
 
 | 文件 | 覆盖 |
 |---|---|
@@ -51,36 +56,40 @@ py -3 -m venv .venv
 | tests/test_extensibility.py | CR-1 新增报名方式、CR-2 新增通知渠道（源码零修改断言） |
 | tests/test_performance.py | NFR-01 冒烟（200 活动列表、500 报名统计 <2s） |
 | tests/test_web.py | Web 路由、角色校验、表单流程冒烟 |
+| tests/test_change_v2.py | CR1-01～05、CR2-01～05、年级表单/邮件页 Web 冒烟（12 个） |
 
 ## 4. 代码结构与设计映射
 
 ```text
 app/
-  domain/           领域层：实体、枚举、值对象、策略（Strategy+Factory）、事件（Observer）
-  application/      应用服务层：ActivityService / RegistrationService / StatisticsService / NotificationQueryService
-  infrastructure/   基础设施层：SQLite 仓储实现、事务管理器（BEGIN IMMEDIATE）、连接提供者
-  ui/               界面层：5 个控制器 + 路由 + Jinja2 模板（不直接访问 Repository）
+  domain/           领域层：实体、枚举、值对象、策略（Strategy+Factory）、资格规则（EligibilityRule）、事件（Observer）
+  application/      应用服务层：ActivityService / RegistrationService / StatisticsService / NotificationQueryService / EmailLogQueryService
+  infrastructure/   基础设施层：SQLite 仓储实现、MockEmailSender、事务管理器（BEGIN IMMEDIATE）、连接提供者
+  ui/               界面层：6 个控制器 + 路由 + Jinja2 模板（不直接访问 Repository）
   composition.py    组合根：启动时装配接口与实现（依赖倒置）
 run.py              本地启动入口
-tests/              自动化测试（含可扩展性验证）
+tests/              自动化测试（含可扩展性与 CR 验收）
 ```
 
 设计要点（与 `uml/04-设计原则与模式.md` 对应）：
 
-- **公共规则集中**：活动状态/重复/名额在 `RegistrationService`+`Activity`；策略只决定初始状态。
-- **通知解耦**：报名事务提交后发布 `RegistrationEvent`；观察者失败只写日志不回滚；`eventKey = registrationId:eventType` 幂等（唯一约束兜底）。
+- **公共规则集中**：活动状态/重复/年级/名额在 `RegistrationService` + `Activity` + `EligibilityRule`；策略只决定初始状态。
+- **年级限定（CR-01）**：`CompositeEligibilityRule` 组合 `GradeEligibilityRule`；未配置允许年级时直接通过，baseline 行为不变。
+- **通知解耦（CR-02）**：报名事务提交后发布 `RegistrationEvent`；站内消息与模拟邮件是两个观察者；失败只写日志不回滚；`eventKey = registrationId:eventType` 幂等（两张表唯一约束兜底）。
+- **邮件范围**：直接报名通过、审核通过、审核拒绝；审核型提交与取消不发邮件。
 - **并发**：写事务 `BEGIN IMMEDIATE` + 部分唯一索引；批准时复查名额（E2/E3 已验证）。
 - **读模型**：活动列表/我的报名/审批列表/统计用一条 JOIN 查询，避免 N+1。
 
-## 5. 可扩展性验证（代码编写过程中持续验证）
+## 5. 可扩展性与变更实测
 
 | 变更 | 做法 | 结论 |
 |---|---|---|
-| 新增报名方式（CR-1 抽签） | 只扩展枚举 + DB CHECK + 工厂注册 | `RegistrationService.submit` 源码零修改（测试断言） |
-| 新增通知渠道（CR-2 邮件） | 只新增观察者并订阅 | 服务与发布者源码零修改（测试断言） |
-| 策略契约 | 策略不查库、不修改上下文 | 契约测试通过 |
+| baseline 模拟 CR-1 抽签 | 只扩展枚举 + DB CHECK + 工厂注册 | `RegistrationService.submit` 源码零修改（测试断言） |
+| baseline 模拟 CR-2 邮件 | 只新增观察者并订阅 | 服务与发布者源码零修改（测试断言） |
+| 实际 CR-01 年级限定 | 新增 `EligibilityRule` 组合 + 活动字段 | 策略未改；修改 2 个核心类（`Activity`、`RegistrationService`） |
+| 实际 CR-02 模拟邮件 | 新增观察者 + 发送器 + `email_log` 仓储/查询/页面 | `RegistrationService` 无邮件代码；修改 0 个核心业务类 |
 
-指标：新增类数 ≤1～2；核心业务类修改 0；回归失败 0（详见 `docs/需求验收表.md` §4）。
+**change-v2 实测指标：** 新增 14 个类型（13 类 + 1 枚举）；修改核心业务类 4 个（`Student`、`Activity`、`ActivityService`、`RegistrationService`）；回归失败 0（59 passed）；AI 交互 2 轮；约 1 小时。详见 `docs/需求验收表.md` §9 与 `uml/设计说明书.md` 13.5。
 
 ## 6. 部署（云服务器）
 
@@ -107,18 +116,20 @@ SQLite 单文件；生产用 waitress/gunicorn 多线程即可（写事务串行
 
 - 仓库：`https://github.com/kudryavka1023/202-CampusEvent.git`
 - 分支：`main`。
-- 标签：`baseline-v1`（初始验收版本，本阶段交付）。
+- 标签：`baseline-v1`（初始验收版本）；`change-v2`（CR-01/CR-02 变更验收版本，待用户复核后创建）。
 - 提交约定：一个提交一件事；提交信息写“为什么”。
 
-创建 baseline-v1 标签：
+baseline-v1 已提交并打标签；change-v2 在 `main` 上增量提交，创建标签命令：
 
 ```bash
 git add -A
-git commit -m "docs: 补充云部署说明与图件汇总"
-git tag -a baseline-v1 -m "实验二初始验收版本：47/47 测试通过，已部署上线"
+git commit -m "feat: 实现 CR-01 年级限定与 CR-02 模拟邮件通知"
+git tag -a change-v2 -m "实验二变更版本：59/59 测试通过，CR-01/CR-02 验收完成"
 git push origin main --tags
 ```
 
+> 按用户要求，`change-v2` 标签在用户复核后再创建/推送；代码与文档已提交到 `main`，标签创建是最后一步。
+
 ## 8. AI 使用记录
 
-见 `AI_DEV_LOG.md`（提示策略、生成物、人工核对与验证结果）。
+见 `AI_DEV_LOG.md`（提示策略、生成物、人工核对与验证结果；含 change-v2 的交互轮次、修改时长与回归指标）。

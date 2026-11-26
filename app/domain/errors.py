@@ -21,6 +21,8 @@ POLICY_IMMUTABLE = "POLICY_IMMUTABLE"
 POLICY_NOT_CONFIGURED = "POLICY_NOT_CONFIGURED"
 PERSISTENCE_ERROR = "PERSISTENCE_ERROR"
 NOTIFICATION_FAILED = "NOTIFICATION_FAILED"
+GRADE_NOT_ALLOWED = "GRADE_NOT_ALLOWED"
+EMAIL_SEND_FAILED = "EMAIL_SEND_FAILED"
 
 
 class DomainError(Exception):
@@ -44,4 +46,8 @@ class DuplicateActiveError(DomainError):
 
 
 class DuplicateEventKeyError(DomainError):
-    """消息去重键唯一约束冲突：视为“已通知”。"""
+    """消息/邮件去重键唯一约束冲突：视为“已通知”。"""
+
+
+class EmailSendError(DomainError):
+    """模拟邮件发送失败；由观察者抛给发布者写失败日志。"""

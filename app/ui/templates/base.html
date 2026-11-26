@@ -43,6 +43,7 @@
     <span class="muted" style="color:#cfe0ee;">学生：{{ session.get('name') }}</span>
   {% elif session.get('role') == 'ADMIN' %}
     <a href="{{ url_for('bp.admin_activity_list') }}">活动管理</a>
+    <a href="{{ url_for('bp.admin_emails') }}">邮件记录</a>
     <span class="muted" style="color:#cfe0ee;">管理员</span>
   {% endif %}
   <a href="{{ url_for('bp.demo_login') }}" style="margin-left:auto;">演示身份</a>

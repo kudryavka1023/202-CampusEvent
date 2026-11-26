@@ -10,14 +10,25 @@ from __future__ import annotations
 import sqlite3
 from typing import List, Optional
 
+from ..domain.email import EmailLogRepository
 from ..domain.entities import Activity, Message, Registration, Student, now_str, parse_dt
-from ..domain.enums import PolicyType, RegistrationStatus
+from ..domain.enums import EmailStatus, PolicyType, RegistrationStatus
 from ..domain.errors import DuplicateActiveError, DuplicateEventKeyError
-from ..domain.value_objects import ActivityStatistics, ActivitySummary, RegistrationSummary
+from ..domain.value_objects import ActivityStatistics, ActivitySummary, EmailLog, RegistrationSummary
 
 
 def _escape_like(keyword: str) -> str:
     return keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _parse_allowed_grades(value):
+    if value is None or value == "":
+        return None
+    return tuple(sorted({int(part) for part in str(value).split(",") if part.strip()}))
+
+
+def _serialize_allowed_grades(grades):
+    return None if grades is None else ",".join(str(g) for g in grades)
 
 
 class SqliteActivityRepository:
@@ -29,7 +40,8 @@ class SqliteActivityRepository:
 
     def find_by_id(self, activity_id: str) -> Optional[Activity]:
         row = self._conn().execute(
-            "SELECT activity_id, title, category, start_at, location, capacity, policy_type "
+            "SELECT activity_id, title, category, start_at, location, capacity, policy_type, "
+            "       allowed_grades "
             "FROM activities WHERE activity_id = ?",
             (activity_id,),
         ).fetchone()
@@ -39,17 +51,19 @@ class SqliteActivityRepository:
         pattern = "%" + _escape_like(keyword) + "%"
         rows = self._conn().execute(
             "SELECT a.activity_id, a.title, a.category, a.start_at, a.location, a.capacity, "
+            "       a.allowed_grades, "
             "       COUNT(CASE WHEN r.status = 'APPROVED' THEN 1 END) AS approved_count "
             "FROM activities a "
             "LEFT JOIN registrations r ON r.activity_id = a.activity_id "
             "WHERE a.title LIKE ? ESCAPE '\\' "
-            "GROUP BY a.activity_id, a.title, a.category, a.start_at, a.location, a.capacity "
+            "GROUP BY a.activity_id, a.title, a.category, a.start_at, a.location, a.capacity, "
+            "         a.allowed_grades "
             "ORDER BY a.start_at ASC",
             (pattern,),
         ).fetchall()
         summaries = []
         for row in rows:
-            activity_id, title, category, start_at, location, capacity, approved = row
+            activity_id, title, category, start_at, location, capacity, allowed_raw, approved = row
             remaining = max(0, capacity - approved)
             if now >= parse_dt(start_at):
                 display = "STARTED"
@@ -59,7 +73,8 @@ class SqliteActivityRepository:
                 display = "OPEN"
             summaries.append(
                 ActivitySummary(activity_id, title, category, start_at, location,
-                                capacity, approved, remaining, display)
+                                capacity, approved, remaining, display,
+                                _parse_allowed_grades(allowed_raw))
             )
         return summaries
 
@@ -67,18 +82,20 @@ class SqliteActivityRepository:
         ts = now_str()
         self._conn().execute(
             "INSERT INTO activities(activity_id, title, category, start_at, location, "
-            "capacity, policy_type, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            "capacity, policy_type, allowed_grades, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (activity.activity_id, activity.title, activity.category, activity.start_at,
-             activity.location, activity.capacity, activity.policy_type.value, ts, ts),
+             activity.location, activity.capacity, activity.policy_type.value,
+             _serialize_allowed_grades(activity.allowed_grades), ts, ts),
         )
 
     def update(self, activity: Activity) -> None:
         self._conn().execute(
             "UPDATE activities SET title=?, category=?, start_at=?, location=?, capacity=?, "
-            "policy_type=?, updated_at=? WHERE activity_id=?",
+            "policy_type=?, allowed_grades=?, updated_at=? WHERE activity_id=?",
             (activity.title, activity.category, activity.start_at, activity.location,
-             activity.capacity, activity.policy_type.value, now_str(), activity.activity_id),
+             activity.capacity, activity.policy_type.value,
+             _serialize_allowed_grades(activity.allowed_grades), now_str(), activity.activity_id),
         )
 
     def delete(self, activity_id: str) -> None:
@@ -86,13 +103,14 @@ class SqliteActivityRepository:
 
     @staticmethod
     def _to_activity(row) -> Activity:
-        activity_id, title, category, start_at, location, capacity, policy_type = row
+        activity_id, title, category, start_at, location, capacity, policy_type, allowed_raw = row
         try:
             policy = PolicyType(policy_type)
         except ValueError:
             # 扩展枚举（如抽签）按原值保留；策略工厂按值查找，服务不感知具体枚举
             policy = policy_type
-        return Activity(activity_id, title, category, start_at, location, capacity, policy)
+        return Activity(activity_id, title, category, start_at, location, capacity, policy,
+                        _parse_allowed_grades(allowed_raw))
 
 
 class SqliteRegistrationRepository:
@@ -274,10 +292,56 @@ class SqliteStudentRepository:
 
     def find_by_id(self, student_id: str) -> Optional[Student]:
         row = self.provider.get().execute(
-            "SELECT student_id, name FROM students WHERE student_id=?", (student_id,)
+            "SELECT student_id, name, grade, email FROM students WHERE student_id=?", (student_id,)
         ).fetchone()
-        return Student(row[0], row[1]) if row else None
+        return Student(row[0], row[1], row[2], row[3]) if row else None
 
     def all(self) -> List[Student]:
-        rows = self.provider.get().execute("SELECT student_id, name FROM students ORDER BY student_id").fetchall()
-        return [Student(r[0], r[1]) for r in rows]
+        rows = self.provider.get().execute(
+            "SELECT student_id, name, grade, email FROM students ORDER BY student_id"
+        ).fetchall()
+        return [Student(r[0], r[1], r[2], r[3]) for r in rows]
+
+
+class SqliteEmailLogRepository(EmailLogRepository):
+    def __init__(self, provider):
+        self.provider = provider
+
+    def _conn(self):
+        return self.provider.get()
+
+    def save(self, log: EmailLog) -> None:
+        try:
+            self._conn().execute(
+                "INSERT INTO email_log(email_id, event_key, registration_id, student_id, "
+                "recipient, subject, content, status, error, created_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (log.email_id, log.event_key, log.registration_id, log.student_id,
+                 log.recipient, log.subject, log.content, log.status.value,
+                 log.error, log.created_at),
+            )
+        except sqlite3.IntegrityError as exc:
+            if "event_key" in str(exc):
+                raise DuplicateEventKeyError("邮件去重键冲突，视为已发送") from exc
+            raise
+
+    def exists_by_event_key(self, event_key: str) -> bool:
+        row = self._conn().execute(
+            "SELECT 1 FROM email_log WHERE event_key=? LIMIT 1", (event_key,)
+        ).fetchone()
+        return row is not None
+
+    def find_all(self, limit: int = 200) -> List[EmailLog]:
+        rows = self._conn().execute(
+            "SELECT email_id, event_key, registration_id, student_id, recipient, subject, "
+            "       content, status, error, created_at "
+            "FROM email_log ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [self._to_log(row) for row in rows]
+
+    @staticmethod
+    def _to_log(row) -> EmailLog:
+        email_id, event_key, registration_id, student_id, recipient, subject, content, status, error, created_at = row
+        return EmailLog(email_id, event_key, registration_id, student_id, recipient,
+                        subject, content, EmailStatus(status), error, created_at)

@@ -6,7 +6,7 @@
   <form method="post" action="{{ url_for('bp.demo_session') }}" class="row">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <select name="user_id">
-      {% for s in students %}<option value="{{ s.student_id }}">{{ s.name }}（{{ s.student_id }}）</option>{% endfor %}
+      {% for s in students %}<option value="{{ s.student_id }}">{{ s.name }}（{{ s.student_id }} · {{ grade_text[s.grade] }}）</option>{% endfor %}
     </select>
     <input type="hidden" name="role" value="STUDENT">
     <button class="btn" type="submit">以学生身份进入</button>

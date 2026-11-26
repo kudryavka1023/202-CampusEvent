@@ -11,7 +11,7 @@
   <div class="card">暂无活动{% if keyword %}（未找到匹配活动）{% endif %}</div>
 {% else %}
 <table>
-  <tr><th>名称</th><th>类型</th><th>开始时间</th><th>地点</th><th>容量</th><th>剩余名额</th><th>状态</th><th></th></tr>
+  <tr><th>名称</th><th>类型</th><th>开始时间</th><th>地点</th><th>容量</th><th>剩余名额</th><th>年级限定</th><th>状态</th><th></th></tr>
   {% for s in summaries %}
   <tr>
     <td><a href="{{ url_for('bp.activity_detail', activity_id=s.activity_id) }}">{{ s.title }}</a></td>
@@ -20,6 +20,7 @@
     <td>{{ s.location }}</td>
     <td>{{ s.capacity }}</td>
     <td>{{ s.remaining_seats }}</td>
+    <td>{{ s.grade_requirement_text() }}</td>
     <td>{% if s.display_status == 'OPEN' %}报名中{% elif s.display_status == 'FULL' %}已满{% else %}已开始{% endif %}</td>
     <td><a class="btn ghost" href="{{ url_for('bp.activity_detail', activity_id=s.activity_id) }}">详情</a></td>
   </tr>

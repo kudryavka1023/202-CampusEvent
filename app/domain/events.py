@@ -3,22 +3,23 @@
 - 发布者只依赖 RegistrationObserver 接口；
 - 运行时实现为 SimpleRegistrationEventPublisher：对每个观察者 try/except，
   失败交给 NotificationFailureLogger，不回滚业务；
-- MessageNotificationObserver 按 eventKey 幂等（先查后插，唯一约束兜底）。
+- MessageNotificationObserver 按 eventKey 幂等（先查后插，唯一约束兜底）；
+- EmailNotificationObserver 只处理“报名通过/审核通过/拒绝”，同样按 eventKey 幂等；
+  邮件发送失败由 MockEmailSender 记 FAILED，再抛给发布者写失败日志。
 """
 from __future__ import annotations
 
 import logging
 import os
-import uuid
 from abc import ABC, abstractmethod
 from typing import List
 
+from .email import EmailLogRepository, EmailSender
+from .entities import Message
+from .enums import RegistrationEventType, RegistrationStatus
 from .errors import DuplicateEventKeyError
-from .value_objects import RegistrationEvent
-
-
-def new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+from .ids import new_id
+from .value_objects import EmailMessage, RegistrationEvent
 
 
 class RegistrationObserver(ABC):
@@ -80,23 +81,56 @@ class MessageNotificationObserver(RegistrationObserver):
         if self.message_repository.exists_by_event_key(event.event_key()):
             return  # 已通知（幂等）
         content = build_message_content(event)
-        message = self._new_message(event, content)
-        try:
-            self.message_repository.save(message)
-        except DuplicateEventKeyError:
-            pass  # 唯一约束兜底：并发下按“已通知”处理
-        # 其它异常不在此吞掉，交给发布者写失败日志
-
-    def _new_message(self, event, content):
-        from .entities import Message
-
-        return Message(
+        message = Message(
             message_id=new_id("msg"),
             student_id=event.student_id,
             activity_id=event.activity_id,
             content=content,
             event_key=event.event_key(),
         )
+        try:
+            self.message_repository.save(message)
+        except DuplicateEventKeyError:
+            pass  # 唯一约束兜底：并发下按“已通知”处理
+        # 其它异常不在此吞掉，交给发布者写失败日志
+
+
+def should_send_email(event: RegistrationEvent) -> bool:
+    """变更单 CR-02 的邮件范围：直接报名通过、审核通过、审核拒绝。"""
+    if event.type is RegistrationEventType.SUBMITTED:
+        return event.status is RegistrationStatus.APPROVED
+    return event.type in (RegistrationEventType.APPROVED, RegistrationEventType.REJECTED)
+
+
+class EmailNotificationObserver(RegistrationObserver):
+    """把领域事件落成模拟邮件；只依赖 EmailSender / EmailLogRepository 接口。"""
+
+    def __init__(self, student_repository, email_sender: EmailSender,
+                 email_log_repository: EmailLogRepository):
+        self.student_repository = student_repository
+        self.email_sender = email_sender
+        self.email_log_repository = email_log_repository
+
+    def on_registration_event(self, event: RegistrationEvent) -> None:
+        if not should_send_email(event):
+            return
+        if self.email_log_repository.exists_by_event_key(event.event_key()):
+            return  # 已发送（幂等）
+        student = self.student_repository.find_by_id(event.student_id)
+        recipient = student.get_email() if student else f"{event.student_id}@campus.edu"
+        message = EmailMessage(
+            event_key=event.event_key(),
+            registration_id=event.registration_id,
+            student_id=event.student_id,
+            recipient=recipient,
+            subject=build_email_subject(event),
+            content=build_email_content(event),
+        )
+        try:
+            self.email_sender.send(message)
+        except DuplicateEventKeyError:
+            pass  # 唯一约束兜底：并发下按“已发送”处理
+        # EmailSendError 等其它异常交给发布者写失败日志；MockEmailSender 已记 FAILED
 
 
 def build_message_content(event: RegistrationEvent) -> str:
@@ -113,3 +147,22 @@ def build_message_content(event: RegistrationEvent) -> str:
     if event.type.value == "CANCELLED":
         return "你已取消报名。"
     return "报名状态已更新。"
+
+
+def build_email_subject(event: RegistrationEvent) -> str:
+    if event.type is RegistrationEventType.SUBMITTED and event.status is RegistrationStatus.APPROVED:
+        return "【CampusEvent】报名已通过"
+    if event.type is RegistrationEventType.APPROVED:
+        return "【CampusEvent】报名审核已通过"
+    if event.type is RegistrationEventType.REJECTED:
+        return "【CampusEvent】报名未通过"
+    return "【CampusEvent】报名状态更新"
+
+
+def build_email_content(event: RegistrationEvent) -> str:
+    return "\n".join([
+        build_message_content(event),
+        f"活动编号：{event.activity_id}",
+        f"报名编号：{event.registration_id}",
+        "（本邮件由 CampusEvent 模拟邮件发送器发出）",
+    ])

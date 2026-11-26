@@ -1,4 +1,4 @@
-# AI_DEV_LOG — CampusEvent baseline-v1
+# AI_DEV_LOG — CampusEvent baseline-v1 + change-v2
 
 > 按实验二要求保留 AI 交互与人工核对记录；详细过程见各阶段文档。
 
@@ -44,3 +44,58 @@
 - [x] C1～C10、E1～E10 全部通过（47/47）
 - [x] 无密钥/敏感信息入库；`data/`、`logs/`、`.venv/` 已 gitignore
 - [x] 未提前实现变更单（CR）内容；仅以测试模拟扩展点
+
+---
+
+## 6. change-v2（CR-01/CR-02）记录
+
+### 6.1 输入与边界
+
+- 输入：教师变更单 `实验二教师专用材料.docx`；已评审的 baseline-v1；`docs/CR-01-CR-02-影响分析.md`。
+- AI 职责：按变更单实现年级限定与模拟邮件，更新 UML/文档，跑全量回归；**不扩大需求范围**（不接真实 SMTP、不做学生管理界面）。
+- 人工职责：确认变更范围与设计取舍，复核标签创建时机。
+
+### 6.2 交互与时长（实测）
+
+| 项 | 值 | 口径 |
+|---|---|---|
+| AI 交互轮次 | 2 | 用户指令：需求下发、继续执行；工具调用不计 |
+| 开始时间 | 2026-11-26 16:10 | 变更实现起点 |
+| 结束时间 | 2026-11-26（回归/文档完成） | 以最终 `pytest` 通过为准 |
+| 修改总时长 | 约 1 小时 | 含代码、UML 生成、文档、回归 |
+| 回归失败 | 0 | 59 passed（47 baseline + 12 新增） |
+| 新增类型 | 14（13 类 + 1 枚举） | `git diff` / 新增文件 |
+| 修改核心业务类 | 4 | `Student`、`Activity`、`ActivityService`、`RegistrationService` |
+
+### 6.3 生成与验证过程
+
+| 步骤 | 内容 | 验证方式 | 结果 |
+|---|---|---|---|
+| 1 | 读取教师变更单，写影响分析（范围/备选/风险/测试） | 人工核对 | 完成 |
+| 2 | CR-01：资格规则、实体字段、服务钩子、表单/列表/详情 | CR1-01～04 + Web 冒烟 | 通过 |
+| 3 | CR-02：观察者、发送器、邮件记录仓储/查询/页面 | CR2-01～04 + Web 冒烟 | 通过 |
+| 4 | 数据库增量迁移（grade/email/allowed_grades/email_log） | 重启/旧库迁移测试 | 通过 |
+| 5 | 更新用例图、分析类图、设计类图、三张顺序图、活动图、状态图 | `validate_all.py`、`check_class_edges.py` | 通过 |
+| 6 | 全量回归（含 baseline C1～C10、E1～E10） | `pytest -q` | 59 passed |
+| 7 | 回填 SRS/用例规格/设计说明书/模式报告/验收表/README | 人工核对 | 完成 |
+
+### 6.4 关键决策落点（代码证据）
+
+| 决策 | 代码位置 |
+|---|---|
+| 年级是资格规则，不是新策略 | `app/domain/rules.py`；`RegistrationService.check_eligibility` |
+| 规则顺序：存在→未开始→重复→年级→名额→策略 | `app/application/services.py::RegistrationService.submit` |
+| 邮件是第二个观察者 | `app/domain/events.py::EmailNotificationObserver` |
+| 邮件失败先记 FAILED 再抛出 | `app/infrastructure/email.py::MockEmailSender.send` |
+| 幂等键唯一 | `messages.event_key`、`email_log.event_key` |
+| 增量迁移旧库 | `app/infrastructure/db.py::_migrate` |
+
+### 6.5 复核清单（人工）
+
+- [x] CR1-01～05、CR2-01～05 全部通过
+- [x] baseline C1～C10、E1～E10 无回退
+- [x] 邮件失败不回滚报名；重复事件不重复通知
+- [x] `RegistrationService` 无邮件代码；策略接口未改
+- [x] 旧数据库可增量迁移；演示学生覆盖 1—4 年级
+- [x] 未创建/推送 `change-v2` 标签（等待用户复核）
+- [ ] 用户复核后创建 `change-v2` 标签并推送

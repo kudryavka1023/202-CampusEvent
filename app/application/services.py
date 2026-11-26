@@ -30,12 +30,14 @@ from ..domain.errors import (
     NotFoundError,
     PolicyNotConfiguredError,
 )
-from ..domain.events import new_id
+from ..domain.ids import new_id
 from ..domain.policies import RegistrationPolicyFactory
+from ..domain.rules import EligibilityRule
 from ..domain.value_objects import (
     ActivityResult,
     ActivityStatistics,
     ActivitySummary,
+    EmailLog,
     RegistrationContext,
     RegistrationEvent,
     RegistrationResult,
@@ -134,6 +136,13 @@ class ActivityService:
             return "活动地点必填"
         if getattr(activity.policy_type, "value", activity.policy_type) not in self.allowed_policy_values:
             return "报名方式配置错误"
+        if activity.allowed_grades is not None:
+            if not activity.allowed_grades:
+                return "年级限定不能为空；如不限年级请留空"
+            if any(g not in (1, 2, 3, 4) for g in activity.allowed_grades):
+                return "年级限定只能选择 1—4 年级"
+            if len(activity.allowed_grades) == 4:
+                activity.allowed_grades = None  # 四个年级都选等于不限
         if capacity_check:
             if not isinstance(activity.capacity, int) or activity.capacity <= 0:
                 return "人数上限必须为正整数"
@@ -149,12 +158,15 @@ class ActivityService:
 
 class RegistrationService:
     def __init__(self, activity_repository, registration_repository, policy_factory,
-                 event_publisher, transaction_manager):
+                 event_publisher, transaction_manager, student_repository=None,
+                 eligibility_rule: Optional[EligibilityRule] = None):
         self.activity_repository = activity_repository
         self.registration_repository = registration_repository
         self.policy_factory: RegistrationPolicyFactory = policy_factory
         self.event_publisher = event_publisher
         self.transaction_manager = transaction_manager
+        self.student_repository = student_repository
+        self.eligibility_rule = eligibility_rule
 
     # ---------- 查询 ----------
     def find_active(self, student_id: str, activity_id: str) -> Optional[Registration]:
@@ -170,6 +182,22 @@ class RegistrationService:
             activity_id, RegistrationStatus.PENDING
         )
 
+    def check_eligibility(self, student_id: str, activity_id: str) -> Optional[str]:
+        """供详情页预判：返回拒绝原因，None 表示可报名。
+
+        权威校验仍在 submit 内；这里只复用同一规则，避免页面与提交口径不一致。
+        """
+        if self.eligibility_rule is None or self.student_repository is None:
+            return None
+        activity = self.activity_repository.find_by_id(activity_id)
+        student = self.student_repository.find_by_id(student_id)
+        if activity is None or student is None:
+            return None
+        violation = self.eligibility_rule.check(
+            RegistrationContext(student_id, activity, datetime.now(), 0, student)
+        )
+        return violation.message if violation else None
+
     # ---------- 命令 ----------
     def submit(self, student_id: str, activity_id: str) -> RegistrationResult:
         try:
@@ -182,18 +210,29 @@ class RegistrationService:
                     return RegistrationResult.fail(ACTIVITY_CLOSED, "报名已截止")
                 if self.registration_repository.find_active(student_id, activity_id) is not None:
                     return RegistrationResult.fail(DUPLICATE_ACTIVE, "你已报名该活动，请勿重复提交")
+
+                student = None
+                if self.student_repository is not None:
+                    student = self.student_repository.find_by_id(student_id)
+                    if student is None:
+                        return RegistrationResult.fail(NOT_FOUND, "学生不存在")
+
                 approved = self.registration_repository.count_by_activity_and_status(
                     activity_id, RegistrationStatus.APPROVED
                 )
+                context = RegistrationContext(student_id, activity, now, approved, student)
+                if self.eligibility_rule is not None:
+                    violation = self.eligibility_rule.check(context)
+                    if violation is not None:
+                        return RegistrationResult.fail(violation.error_code, violation.message)
+
                 if not activity.has_capacity(approved):
                     return RegistrationResult.fail(SEATS_FULL, "名额已满")
                 try:
                     policy = self.policy_factory.create(activity.policy_type)
                 except PolicyNotConfiguredError:
                     return RegistrationResult.fail(POLICY_NOT_CONFIGURED, "活动报名方式配置错误")
-                status = policy.decide_initial_status(
-                    RegistrationContext(student_id, activity, now, approved)
-                )
+                status = policy.decide_initial_status(context)
                 registration = Registration(
                     registration_id=new_id("reg"),
                     activity_id=activity_id,
@@ -315,3 +354,13 @@ class NotificationQueryService:
         message.mark_read()
         self.message_repository.update(message)
         return True
+
+
+class EmailLogQueryService:
+    """管理员查看模拟邮件记录；只读，不参与发送。"""
+
+    def __init__(self, email_log_repository):
+        self.email_log_repository = email_log_repository
+
+    def list_all(self, limit: int = 200) -> List[EmailLog]:
+        return self.email_log_repository.find_all(limit)
