@@ -89,7 +89,7 @@ tests/              自动化测试（含可扩展性与 CR 验收）
 | 实际 CR-01 年级限定 | 新增 `EligibilityRule` 组合 + 活动字段 | 策略未改；修改 2 个核心类（`Activity`、`RegistrationService`） |
 | 实际 CR-02 模拟邮件 | 新增观察者 + 发送器 + `email_log` 仓储/查询/页面 | `RegistrationService` 无邮件代码；修改 0 个核心业务类 |
 
-**change-v2 实测指标：** 新增 14 个类型（13 类 + 1 枚举）；修改核心业务类 4 个（`Student`、`Activity`、`ActivityService`、`RegistrationService`）；回归失败 0（59 passed）；AI 交互 2 轮；约 1 小时。详见 `docs/需求验收表.md` §9 与 `uml/设计说明书.md` 13.5。
+**change-v2 实测指标：** 新增 14 个类型（13 类 + 1 枚举）；修改核心业务类 4 个（`Student`、`Activity`、`ActivityService`、`RegistrationService`）；回归失败 0（59 passed）；AI 交互 2 轮；约 52 分钟。详见 `docs/需求验收表.md` §9 与 `uml/设计说明书.md` 13.5。
 
 ## 6. 部署（云服务器）
 
